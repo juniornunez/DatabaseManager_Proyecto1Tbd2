@@ -18,6 +18,7 @@ namespace DatabaseManager.Forms
         private Label lblRight;
         private DataGridView grid;
         private TextBox txtDDL;
+        private SplitContainer split;
 
         private ContextMenuStrip ctxTable;
 
@@ -45,18 +46,26 @@ namespace DatabaseManager.Forms
             Size = new Size(1100, 650);
             StartPosition = FormStartPosition.CenterScreen;
 
-            var split = new SplitContainer
+            split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
-                SplitterDistance = 320,
-                FixedPanel = FixedPanel.Panel1
+                FixedPanel = FixedPanel.Panel1,
+                IsSplitterFixed = true
             };
             Controls.Add(split);
+
+            split.SplitterDistance = 400;
+            split.Panel1MinSize = 400;
+
+            split.Panel1.Padding = new Padding(0);
+            split.Panel2.Padding = new Padding(0);
+
 
             tree = new TreeView
             {
                 Dock = DockStyle.Fill,
-                ShowNodeToolTips = true
+                ShowNodeToolTips = true,
+                HideSelection = false
             };
             tree.BeforeExpand += Tree_BeforeExpand;
             tree.AfterSelect += Tree_AfterSelect;
@@ -191,7 +200,7 @@ namespace DatabaseManager.Forms
         {
             ctxTable = new ContextMenuStrip();
 
-            var miViewData = new ToolStripMenuItem("Ver datos (TOP 200)");
+            var miViewData = new ToolStripMenuItem("Ver datos");
             miViewData.Click += (_, __) => ViewSelectedTableData();
 
             var miViewCols = new ToolStripMenuItem("Ver columnas");
