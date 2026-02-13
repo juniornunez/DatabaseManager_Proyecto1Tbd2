@@ -30,7 +30,6 @@ namespace DatabaseManager.Forms
             Size = new Size(650, 380);
             StartPosition = FormStartPosition.CenterScreen;
 
-            // Solo un panel (antes era el rightPanel)
             var panel = new Panel
             {
                 Location = new Point(10, 10),

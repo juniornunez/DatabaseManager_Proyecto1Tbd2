@@ -12,15 +12,19 @@ namespace DatabaseManager.Forms
         private readonly MetadataService _meta;
         private readonly TableViewerService _tableViewer;
         private readonly DdlService _ddl;
+        private readonly SqlExecutorService _sql;
 
+        private SplitContainer split;
         private TreeView tree;
+
         private Panel rightPanel;
         private Label lblRight;
-        private DataGridView grid;
-        private TextBox txtDDL;
-        private SplitContainer split;
 
-        private ContextMenuStrip ctxTable;
+        private TabControl tabs;
+        private int _sqlTabCounter = 0;
+
+        private ContextMenuStrip ctxObject;
+        private ContextMenuStrip ctxDb;
 
         private const string TAG_DB = "DB";
         private const string TAG_TABLES = "TABLES";
@@ -28,6 +32,7 @@ namespace DatabaseManager.Forms
         private const string TAG_PROCS = "PROCS";
         private const string TAG_FUNCS = "FUNCS";
         private const string TAG_OBJECT = "OBJECT";
+        private const string TAG_SCHEMA_GROUP = "SCHEMA_GROUP";
 
         public MainForm(ConnectionService conn)
         {
@@ -35,6 +40,7 @@ namespace DatabaseManager.Forms
             _meta = new MetadataService(_conn);
             _tableViewer = new TableViewerService(_conn);
             _ddl = new DdlService(_conn);
+            _sql = new SqlExecutorService(_conn);
 
             BuildUI();
             BuildTreeRoot();
@@ -43,29 +49,27 @@ namespace DatabaseManager.Forms
         private void BuildUI()
         {
             Text = "Database Manager - Explorer";
-            Size = new Size(1100, 650);
+            Size = new Size(1200, 700);
+            MinimumSize = new Size(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
 
             split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
                 FixedPanel = FixedPanel.Panel1,
-                IsSplitterFixed = true
+                IsSplitterFixed = false,
+               
             };
+
             Controls.Add(split);
 
-            split.SplitterDistance = 400;
-            split.Panel1MinSize = 400;
-
-            split.Panel1.Padding = new Padding(0);
-            split.Panel2.Padding = new Padding(0);
-
+            this.Shown += MainForm_Shown;
 
             tree = new TreeView
             {
                 Dock = DockStyle.Fill,
-                ShowNodeToolTips = true,
-                HideSelection = false
+                ShowNodeToolTips = true
             };
             tree.BeforeExpand += Tree_BeforeExpand;
             tree.AfterSelect += Tree_AfterSelect;
@@ -73,53 +77,82 @@ namespace DatabaseManager.Forms
 
             split.Panel1.Controls.Add(tree);
 
-            rightPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12) };
+            rightPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10) };
 
             lblRight = new Label
             {
-                Text = "Selecciona un nodo o haz click derecho en una tabla.",
+                Text = "Selecciona un nodo o haz click derecho.",
                 Dock = DockStyle.Top,
-                Height = 24,
+                Height = 26,
                 AutoSize = false,
                 Font = new Font(Font.FontFamily, 10, FontStyle.Regular)
             };
 
-            grid = new DataGridView
+            tabs = new TabControl
             {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false
+                Dock = DockStyle.Fill
             };
 
-            txtDDL = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Both,
-                WordWrap = false,
-                Visible = false,
-                Font = new Font("Consolas", 10, FontStyle.Regular)
-            };
-
-            rightPanel.Controls.Add(grid);
-            rightPanel.Controls.Add(txtDDL);
+            rightPanel.Controls.Add(tabs);
             rightPanel.Controls.Add(lblRight);
-
             split.Panel2.Controls.Add(rightPanel);
 
-            BuildContextMenu();
+            BuildContextMenus();
+        }
+
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
+            BeginInvoke(new Action(() =>
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    ConfigureMainSplitter();
+                }));
+            }));
+        }
+
+        private void ConfigureMainSplitter()
+        {
+            try
+            {
+                if (split == null || split.IsDisposed) return;
+
+                int totalWidth = split.ClientSize.Width;
+
+                if (totalWidth <= 100) return;
+
+                int minPanel1 = Math.Min(200, totalWidth / 4);
+                int minPanel2 = Math.Min(400, totalWidth / 2);
+
+                split.Panel1MinSize = minPanel1;
+                split.Panel2MinSize = minPanel2;
+
+                int desiredDistance = 360;
+                int maxDistance = totalWidth - minPanel2 - split.SplitterWidth;
+
+             
+                if (desiredDistance < minPanel1)
+                    desiredDistance = minPanel1;
+                if (desiredDistance > maxDistance)
+                    desiredDistance = maxDistance;
+
+                if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
+                {
+                    split.SplitterDistance = desiredDistance;
+                }
+            }
+            catch (Exception ex)
+            {
+               
+                System.Diagnostics.Debug.WriteLine($"Error configurando splitter: {ex.Message}");
+            }
         }
 
         private void BuildTreeRoot()
         {
             tree.Nodes.Clear();
 
-            var dbNode = new TreeNode("Database")
-            {
-                Tag = TAG_DB
-            };
-
+            var dbNode = new TreeNode("Database") { Tag = TAG_DB };
             dbNode.Nodes.Add(MakeLazyNode("Tables", TAG_TABLES));
             dbNode.Nodes.Add(MakeLazyNode("Views", TAG_VIEWS));
             dbNode.Nodes.Add(MakeLazyNode("Procedures", TAG_PROCS));
@@ -173,7 +206,7 @@ namespace DatabaseManager.Forms
                 if (currentSchema != schema)
                 {
                     currentSchema = schema;
-                    schemaNode = new TreeNode(schema) { Tag = "SCHEMA_GROUP" };
+                    schemaNode = new TreeNode(schema) { Tag = TAG_SCHEMA_GROUP };
                     categoryNode.Nodes.Add(schemaNode);
                 }
 
@@ -196,55 +229,78 @@ namespace DatabaseManager.Forms
             lblRight.Text = $"Seleccionado: {node.FullPath}";
         }
 
-        private void BuildContextMenu()
+        private void BuildContextMenus()
         {
-            ctxTable = new ContextMenuStrip();
+            ctxDb = new ContextMenuStrip();
+            var miNewQuery = new ToolStripMenuItem("New Query");
+            miNewQuery.Click += (_, __) => OpenQueryTab("");
+            ctxDb.Items.Add(miNewQuery);
 
-            var miViewData = new ToolStripMenuItem("Ver datos");
-            miViewData.Click += (_, __) => ViewSelectedTableData();
+            ctxObject = new ContextMenuStrip();
+
+            var miViewData = new ToolStripMenuItem("Ver datos (TOP 200)");
+            miViewData.Click += (_, __) => OpenTableDataTab();
 
             var miViewCols = new ToolStripMenuItem("Ver columnas");
-            miViewCols.Click += (_, __) => ViewSelectedTableColumns();
+            miViewCols.Click += (_, __) => OpenColumnsTab();
 
             var miViewDDL = new ToolStripMenuItem("Ver DDL");
-            miViewDDL.Click += (_, __) => ViewSelectedDDL();
+            miViewDDL.Click += (_, __) => OpenDdlTab();
 
-            ctxTable.Items.Add(miViewData);
-            ctxTable.Items.Add(miViewCols);
-            ctxTable.Items.Add(miViewDDL);
+            var miQuery = new ToolStripMenuItem("New Query");
+            miQuery.Click += (_, __) =>
+            {
+                if (TryGetSelectedObject(out string schema, out string name))
+                {
+                    string parentTag = tree.SelectedNode.Parent?.Parent?.Tag?.ToString() ?? "";
+                    string sql = parentTag == TAG_TABLES
+                        ? $"SELECT TOP 200 * FROM [{schema}].[{name}];"
+                        : $"SELECT * FROM [{schema}].[{name}];";
+                    OpenQueryTab(sql);
+                }
+                else OpenQueryTab("");
+            };
+
+            ctxObject.Items.Add(miViewData);
+            ctxObject.Items.Add(miViewCols);
+            ctxObject.Items.Add(miViewDDL);
+            ctxObject.Items.Add(new ToolStripSeparator());
+            ctxObject.Items.Add(miQuery);
         }
 
         private void Tree_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
         {
             tree.SelectedNode = e.Node;
 
-            if (e.Button == MouseButtons.Right && (e.Node.Tag?.ToString() == TAG_OBJECT))
+            if (e.Button == MouseButtons.Right)
             {
-                ctxTable.Show(tree, e.Location);
+                string tag = e.Node.Tag?.ToString() ?? "";
+                if (tag == TAG_DB)
+                {
+                    ctxDb.Show(tree, e.Location);
+                    return;
+                }
+
+                if (tag == TAG_OBJECT)
+                {
+                    ctxObject.Show(tree, e.Location);
+                }
             }
-        }
-
-        private void ShowGrid()
-        {
-            txtDDL.Visible = false;
-            grid.Visible = true;
-        }
-
-        private void ShowDDLBox()
-        {
-            grid.Visible = false;
-            txtDDL.Visible = true;
         }
 
         private bool TryGetSelectedObject(out string schema, out string name)
         {
-            schema = "";
-            name = "";
+            schema = null;
+            name = null;
 
-            var node = tree.SelectedNode;
-            if (node == null || node.Tag?.ToString() != TAG_OBJECT) return false;
+            if (tree.SelectedNode == null) return false;
+            string tag = tree.SelectedNode.Tag?.ToString() ?? "";
+            if (tag != TAG_OBJECT) return false;
 
-            var parts = (node.ToolTipText ?? "").Split('|');
+            string tip = tree.SelectedNode.ToolTipText;
+            if (string.IsNullOrEmpty(tip)) return false;
+
+            var parts = tip.Split('|');
             if (parts.Length != 2) return false;
 
             schema = parts[0];
@@ -252,41 +308,290 @@ namespace DatabaseManager.Forms
             return true;
         }
 
-        private void ViewSelectedTableData()
+        private TabPage UpsertTab(string key, string title)
         {
-            if (!TryGetSelectedObject(out string schema, out string table)) return;
+            foreach (TabPage page in tabs.TabPages)
+            {
+                if (page.Tag?.ToString() == key)
+                {
+                    tabs.SelectedTab = page;
+                    return page;
+                }
+            }
 
-            ShowGrid();
-            var dt = _tableViewer.GetTopRows(schema, table, 200);
-            grid.DataSource = dt;
-            lblRight.Text = $"Datos: {schema}.{table} (TOP 200)";
+            var newPage = new TabPage(title) { Tag = key };
+            tabs.TabPages.Add(newPage);
+            tabs.SelectedTab = newPage;
+            return newPage;
         }
 
-        private void ViewSelectedTableColumns()
-        {
-            if (!TryGetSelectedObject(out string schema, out string table)) return;
-
-            ShowGrid();
-            var dt = _tableViewer.GetColumns(schema, table);
-            grid.DataSource = dt;
-            lblRight.Text = $"Columnas: {schema}.{table}";
-        }
-
-        private void ViewSelectedDDL()
+        private void OpenTableDataTab()
         {
             if (!TryGetSelectedObject(out string schema, out string objName)) return;
 
-            string parentTag = tree.SelectedNode.Parent?.Parent?.Tag?.ToString() ?? "";
-            string ddlText = "";
+            var dt = _tableViewer.GetTableData(schema, objName);
+            string key = $"DATA|{schema}.{objName}";
+            var page = UpsertTab(key, $"Data: {objName}");
+            page.Controls.Clear();
 
-            if (parentTag == TAG_TABLES)
-                ddlText = _ddl.GetTableDDL(schema, objName);
-            else
-                ddlText = _ddl.GetModuleDDL(schema, objName);
+            var grid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                DataSource = dt,
+                ReadOnly = true,
+                AllowUserToAddRows = false
+            };
 
-            ShowDDLBox();
-            txtDDL.Text = ddlText;
+            page.Controls.Add(grid);
+            lblRight.Text = $"Datos: {schema}.{objName}";
+        }
+
+        private void OpenColumnsTab()
+        {
+            if (!TryGetSelectedObject(out string schema, out string objName)) return;
+
+            var dt = _meta.GetColumns(schema, objName);
+            string key = $"COLS|{schema}.{objName}";
+            var page = UpsertTab(key, $"Columns: {objName}");
+            page.Controls.Clear();
+
+            var grid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                DataSource = dt,
+                ReadOnly = true,
+                AllowUserToAddRows = false
+            };
+
+            page.Controls.Add(grid);
+            lblRight.Text = $"Columnas: {schema}.{objName}";
+        }
+
+        private void OpenDdlTab()
+        {
+            if (!TryGetSelectedObject(out string schema, out string objName)) return;
+
+            string parentTag = tree.SelectedNode?.Parent?.Parent?.Tag?.ToString() ?? "";
+
+            string ddlText = parentTag == TAG_TABLES
+                ? _ddl.GetTableDDL(schema, objName)
+                : _ddl.GetModuleDDL(schema, objName);
+
+            string key = $"DDL|{schema}.{objName}";
+            var page = UpsertTab(key, $"DDL: {objName}");
+            page.Controls.Clear();
+
+            var txt = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Both,
+                WordWrap = false,
+                Font = new Font("Consolas", 10, FontStyle.Regular)
+            };
+
+            txt.Text = ddlText;
+            page.Controls.Add(txt);
+
             lblRight.Text = $"DDL: {schema}.{objName}";
+        }
+
+        private void OpenQueryTab(string initialSql)
+        {
+            _sqlTabCounter++;
+
+            var key = $"SQL|{_sqlTabCounter}";
+            var page = UpsertTab(key, $"SQLQuery{_sqlTabCounter}");
+            page.Controls.Clear();
+
+            var splitQ = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Horizontal,
+                FixedPanel = FixedPanel.Panel2,
+                IsSplitterFixed = false
+               
+            };
+
+            var editorPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(8),
+                BackColor = Color.White
+            };
+
+            var actions = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 42
+            };
+
+            var btnRun = new Button { Text = "Execute", Width = 110, Height = 30, Left = 0, Top = 6 };
+            var btnClear = new Button { Text = "Clear", Width = 110, Height = 30, Left = 120, Top = 6 };
+            var btnRefresh = new Button { Text = "Refresh Explorer", Width = 140, Height = 30, Left = 240, Top = 6 };
+
+            actions.Controls.Add(btnRun);
+            actions.Controls.Add(btnClear);
+            actions.Controls.Add(btnRefresh);
+
+            var txtSql = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = false,
+                ScrollBars = ScrollBars.Both,
+                WordWrap = false,
+                Font = new Font("Consolas", 11, FontStyle.Regular),
+                AcceptsTab = true,
+                AcceptsReturn = true,
+                BackColor = Color.White
+            };
+
+            if (!string.IsNullOrWhiteSpace(initialSql))
+                txtSql.Text = initialSql;
+
+            editorPanel.Controls.Add(txtSql);
+            editorPanel.Controls.Add(actions);
+
+            var resultTabs = new TabControl { Dock = DockStyle.Fill };
+
+            var tpResults = new TabPage("Results");
+            var tpMessages = new TabPage("Messages");
+
+            var grid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false
+            };
+
+            var txtMsg = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical
+            };
+
+            tpResults.Controls.Add(grid);
+            tpMessages.Controls.Add(txtMsg);
+
+            resultTabs.TabPages.Add(tpResults);
+            resultTabs.TabPages.Add(tpMessages);
+
+            splitQ.Panel1.Controls.Add(editorPanel);
+            splitQ.Panel2.Controls.Add(resultTabs);
+
+            page.Controls.Add(splitQ);
+
+            System.Windows.Forms.Timer setupTimer = null;
+            setupTimer = new System.Windows.Forms.Timer { Interval = 50 };
+            int attempts = 0;
+
+            setupTimer.Tick += (_, __) =>
+            {
+                attempts++;
+
+                try
+                {
+                    if (splitQ.IsDisposed || attempts > 20)
+                    {
+                        setupTimer?.Stop();
+                        setupTimer?.Dispose();
+                        return;
+                    }
+
+                    int totalHeight = splitQ.ClientSize.Height;
+
+                    if (totalHeight > 100) 
+                    {
+                        int minPanel1 = Math.Min(150, totalHeight / 3);
+                        int minPanel2 = Math.Min(150, totalHeight / 3);
+
+                        splitQ.Panel1MinSize = minPanel1;
+                        splitQ.Panel2MinSize = minPanel2;
+
+                        int desiredDistance = (int)(totalHeight * 0.60);
+                        int maxDistance = totalHeight - minPanel2 - splitQ.SplitterWidth;
+
+                        if (desiredDistance < minPanel1)
+                            desiredDistance = minPanel1;
+                        if (desiredDistance > maxDistance)
+                            desiredDistance = maxDistance;
+
+                        if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
+                        {
+                            splitQ.SplitterDistance = desiredDistance;
+
+                            setupTimer.Stop();
+                            setupTimer.Dispose();
+                        }
+                    }
+                }
+                catch
+                {
+                   
+                }
+            };
+
+            setupTimer.Start();
+
+            btnClear.Click += (_, __) => txtSql.Clear();
+            btnRefresh.Click += (_, __) => RefreshExplorer();
+
+            btnRun.Click += (_, __) =>
+            {
+                try
+                {
+                    string sqlText = txtSql.Text ?? "";
+                    if (string.IsNullOrWhiteSpace(sqlText))
+                    {
+                        txtMsg.Text = "Escribe una consulta.";
+                        resultTabs.SelectedTab = tpMessages;
+                        txtSql.Focus();
+                        return;
+                    }
+
+                    if (LooksLikeSelect(sqlText))
+                    {
+                        var dt = _sql.ExecuteQuery(sqlText);
+                        grid.DataSource = dt;
+                        txtMsg.Text = $"OK - {dt.Rows.Count} filas.";
+                        resultTabs.SelectedTab = tpResults;
+                    }
+                    else
+                    {
+                        int affected = _sql.ExecuteNonQuery(sqlText);
+                        grid.DataSource = null;
+                        txtMsg.Text = $"OK - filas afectadas: {affected}.";
+                        resultTabs.SelectedTab = tpMessages;
+                        RefreshExplorer();
+                    }
+
+                    txtSql.Focus();
+                }
+                catch (Exception ex)
+                {
+                    txtMsg.Text = ex.Message;
+                    resultTabs.SelectedTab = tpMessages;
+                    txtSql.Focus();
+                }
+            };
+
+            BeginInvoke(new Action(() => txtSql.Focus()));
+        }
+
+        private void RefreshExplorer()
+        {
+            BuildTreeRoot();
+        }
+
+        private bool LooksLikeSelect(string sql)
+        {
+            if (string.IsNullOrWhiteSpace(sql)) return false;
+            string trimmed = sql.TrimStart().ToUpperInvariant();
+            return trimmed.StartsWith("SELECT") || trimmed.StartsWith("WITH");
         }
     }
 }
