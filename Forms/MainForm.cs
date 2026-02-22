@@ -92,14 +92,93 @@ namespace DatabaseManager.Forms
 
             tabs = new TabControl
             {
-                Dock = DockStyle.Fill
+                Dock = DockStyle.Fill,
+                Padding = new Point(12, 4)  // AGREGADO: Padding para que quepa el texto y el botón X
             };
+
+            // AGREGADO: Habilitar el cierre de pestañas con botón X
+            tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tabs.DrawItem += Tabs_DrawItem;
+            tabs.MouseDown += Tabs_MouseDown;
 
             rightPanel.Controls.Add(tabs);
             rightPanel.Controls.Add(lblRight);
             split.Panel2.Controls.Add(rightPanel);
 
             BuildContextMenus();
+        }
+
+        /// <summary>
+        /// Dibuja cada pestaña con un botón de cerrar (X)
+        /// </summary>
+        private void Tabs_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            try
+            {
+                TabPage page = tabs.TabPages[e.Index];
+                e.Graphics.FillRectangle(new SolidBrush(page.BackColor), e.Bounds);
+
+                // Dibujar el texto de la pestaña
+                string tabText = page.Text;
+                SizeF textSize = e.Graphics.MeasureString(tabText, e.Font);
+                int textX = e.Bounds.Left + 6;
+                int textY = e.Bounds.Top + (e.Bounds.Height - (int)textSize.Height) / 2;
+
+                e.Graphics.DrawString(tabText, e.Font, Brushes.Black, textX, textY);
+
+                // Dibujar el botón X
+                int closeButtonSize = 14;
+                int closeX = e.Bounds.Right - closeButtonSize - 6;
+                int closeY = e.Bounds.Top + (e.Bounds.Height - closeButtonSize) / 2;
+
+                Rectangle closeRect = new Rectangle(closeX, closeY, closeButtonSize, closeButtonSize);
+
+                // Fondo del botón X (rojo claro)
+                e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(220, 80, 80)), closeRect);
+
+                // Dibujar la X
+                using (Pen whitePen = new Pen(Color.White, 2))
+                {
+                    e.Graphics.DrawLine(whitePen,
+                        closeX + 3, closeY + 3,
+                        closeX + closeButtonSize - 3, closeY + closeButtonSize - 3);
+                    e.Graphics.DrawLine(whitePen,
+                        closeX + closeButtonSize - 3, closeY + 3,
+                        closeX + 3, closeY + closeButtonSize - 3);
+                }
+
+                e.DrawFocusRectangle();
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Detecta el click en el botón X para cerrar la pestaña
+        /// </summary>
+        private void Tabs_MouseDown(object sender, MouseEventArgs e)
+        {
+            try
+            {
+                for (int i = 0; i < tabs.TabPages.Count; i++)
+                {
+                    Rectangle tabRect = tabs.GetTabRect(i);
+
+                    // Área del botón X
+                    int closeButtonSize = 14;
+                    int closeX = tabRect.Right - closeButtonSize - 6;
+                    int closeY = tabRect.Top + (tabRect.Height - closeButtonSize) / 2;
+                    Rectangle closeRect = new Rectangle(closeX, closeY, closeButtonSize, closeButtonSize);
+
+                    // Si se hizo click en el botón X
+                    if (closeRect.Contains(e.Location))
+                    {
+                        // Cerrar la pestaña
+                        tabs.TabPages.RemoveAt(i);
+                        return;
+                    }
+                }
+            }
+            catch { }
         }
 
         private void MainForm_Shown(object sender, EventArgs e)
@@ -242,9 +321,16 @@ namespace DatabaseManager.Forms
         {
             // Menú contextual para el nodo Database (raíz)
             ctxDb = new ContextMenuStrip();
+
             var miNewQuery = new ToolStripMenuItem("New Query");
             miNewQuery.Click += (_, __) => OpenQueryTab("");
+
+            var miRefresh = new ToolStripMenuItem("Refresh");
+            miRefresh.Click += (_, __) => RefreshExplorer();
+
             ctxDb.Items.Add(miNewQuery);
+            ctxDb.Items.Add(new ToolStripSeparator());
+            ctxDb.Items.Add(miRefresh);
 
             // El menú ctxObject ya no se usa, los menús se crean dinámicamente
             // según el tipo de objeto en ShowContextMenuForObject()
@@ -282,39 +368,33 @@ namespace DatabaseManager.Forms
             switch (objectType)
             {
                 case TAG_TABLES:
-                    // TABLAS: Ver datos, Ver columnas, Ver DDL, New Query
+                    // TABLAS: Ver datos, Ver columnas, Ver DDL
                     contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 200)", (s, e) => OpenTableDataTab()));
                     contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
-                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     contextMenu.Items.Add(new ToolStripSeparator());
-                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
                 case TAG_VIEWS:
-                    // VISTAS: Ver datos, Ver columnas, Ver DDL, New Query
+                    // VISTAS: Ver datos, Ver columnas, Ver DDL
                     contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 1000)", (s, e) => OpenTableDataTab()));
                     contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
-                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     contextMenu.Items.Add(new ToolStripSeparator());
-                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
                 case TAG_PROCS:
-                    // PROCEDIMIENTOS: Solo Ver DDL y New Query
+                    // PROCEDIMIENTOS: Solo Ver DDL
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
-                    contextMenu.Items.Add(new ToolStripSeparator());
-                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
                     break;
 
                 case TAG_FUNCS:
-                    // FUNCIONES: Solo Ver DDL y New Query
+                    // FUNCIONES: Solo Ver DDL
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
-                    contextMenu.Items.Add(new ToolStripSeparator());
-                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
                     break;
 
                 case TAG_TRIGGERS:
-                    // TRIGGERS: Solo Ver DDL (no tiene sentido hacer query sobre un trigger)
+                    // TRIGGERS: Solo Ver DDL
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
@@ -335,44 +415,6 @@ namespace DatabaseManager.Forms
             var item = new ToolStripMenuItem(text);
             item.Click += onClick;
             return item;
-        }
-
-        /// <summary>
-        /// Crea un query apropiado según el objeto seleccionado
-        /// </summary>
-        private void CreateQueryForSelectedObject()
-        {
-            if (!TryGetSelectedObject(out string schema, out string name))
-            {
-                OpenQueryTab("");
-                return;
-            }
-
-            string parentTag = tree.SelectedNode?.Parent?.Parent?.Tag?.ToString() ?? "";
-            string sql = "";
-
-            switch (parentTag)
-            {
-                case TAG_TABLES:
-                    sql = $"SELECT TOP 200 * FROM [{schema}].[{name}];";
-                    break;
-                case TAG_VIEWS:
-                    sql = $"SELECT TOP 1000 * FROM [{schema}].[{name}];";
-                    break;
-                case TAG_PROCS:
-                    // Para procedures, generar template de ejecución
-                    sql = $"-- Execute stored procedure\nEXEC [{schema}].[{name}]\n    -- @param1 = value1,\n    -- @param2 = value2;";
-                    break;
-                case TAG_FUNCS:
-                    // Para funciones, generar template de SELECT
-                    sql = $"-- Call function\nSELECT [{schema}].[{name}](\n    -- param1,\n    -- param2\n);";
-                    break;
-                default:
-                    sql = "";
-                    break;
-            }
-
-            OpenQueryTab(sql);
         }
 
         private bool TryGetSelectedObject(out string schema, out string name)
@@ -510,7 +552,7 @@ namespace DatabaseManager.Forms
             _sqlTabCounter++;
 
             var key = $"SQL|{_sqlTabCounter}";
-            var page = UpsertTab(key, $"SQLQuery{_sqlTabCounter}");
+            var page = UpsertTab(key, $"Query{_sqlTabCounter}");  // CAMBIADO: SQLQuery{n} → Query{n}
             page.Controls.Clear();
 
             var splitQ = new SplitContainer
