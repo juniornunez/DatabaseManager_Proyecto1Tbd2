@@ -60,7 +60,21 @@ namespace DatabaseManager.Services
                 ORDER BY s.name, o.name;");
         }
 
-        public DataTable GetColumns(string schema, string tableName)
+        public DataTable GetTriggers()
+        {
+            return _conn.ExecuteSelect(@"
+                SELECT 
+                    OBJECT_SCHEMA_NAME(t.object_id) AS SchemaName, 
+                    t.name AS ObjectName
+                FROM sys.triggers t
+                WHERE t.is_ms_shipped = 0
+                  AND OBJECT_SCHEMA_NAME(t.object_id) <> 'sys'
+                  AND t.parent_class = 1  -- Solo triggers de tabla (no triggers de database)
+                ORDER BY OBJECT_SCHEMA_NAME(t.object_id), t.name;");
+        }
+
+        // AGREGADO: Método GetColumns que funciona con tablas y vistas
+        public DataTable GetColumns(string schema, string objectName)
         {
             string sql = $@"
                 SELECT 
@@ -75,16 +89,14 @@ namespace DatabaseManager.Services
                     ISNULL(dc.definition, '') AS DefaultValue
                 FROM sys.columns c
                 INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-                INNER JOIN sys.tables tb ON c.object_id = tb.object_id
-                INNER JOIN sys.schemas s ON tb.schema_id = s.schema_id
                 LEFT JOIN sys.default_constraints dc ON c.default_object_id = dc.object_id
-                WHERE s.name = '{EscapeSql(schema)}' 
-                  AND tb.name = '{EscapeSql(tableName)}'
+                WHERE c.object_id = OBJECT_ID('{EscapeSql(schema)}.{EscapeSql(objectName)}')
                 ORDER BY c.column_id;";
 
             return _conn.ExecuteSelect(sql);
         }
 
+        // Método auxiliar para escapar comillas simples en SQL
         private string EscapeSql(string value)
         {
             return value?.Replace("'", "''") ?? "";

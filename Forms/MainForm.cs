@@ -31,6 +31,7 @@ namespace DatabaseManager.Forms
         private const string TAG_VIEWS = "VIEWS";
         private const string TAG_PROCS = "PROCS";
         private const string TAG_FUNCS = "FUNCS";
+        private const string TAG_TRIGGERS = "TRIGGERS";
         private const string TAG_OBJECT = "OBJECT";
         private const string TAG_SCHEMA_GROUP = "SCHEMA_GROUP";
 
@@ -59,11 +60,12 @@ namespace DatabaseManager.Forms
                 Orientation = Orientation.Vertical,
                 FixedPanel = FixedPanel.Panel1,
                 IsSplitterFixed = false,
-               
+                // CRÍTICO: NO establecer Panel1MinSize y Panel2MinSize aquí
             };
 
             Controls.Add(split);
 
+            // SOLUCIÓN ROBUSTA: Usar evento Shown con doble BeginInvoke
             this.Shown += MainForm_Shown;
 
             tree = new TreeView
@@ -102,6 +104,7 @@ namespace DatabaseManager.Forms
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
+            // Doble BeginInvoke para asegurar que el formulario esté completamente renderizado
             BeginInvoke(new Action(() =>
             {
                 BeginInvoke(new Action(() =>
@@ -119,23 +122,27 @@ namespace DatabaseManager.Forms
 
                 int totalWidth = split.ClientSize.Width;
 
+                // Verificar que tenemos un ancho válido
                 if (totalWidth <= 100) return;
 
+                // Establecer tamaños mínimos AHORA que tenemos dimensiones reales
                 int minPanel1 = Math.Min(200, totalWidth / 4);
                 int minPanel2 = Math.Min(400, totalWidth / 2);
 
                 split.Panel1MinSize = minPanel1;
                 split.Panel2MinSize = minPanel2;
 
+                // Calcular la distancia deseada
                 int desiredDistance = 360;
                 int maxDistance = totalWidth - minPanel2 - split.SplitterWidth;
 
-             
+                // Asegurar que está en el rango válido
                 if (desiredDistance < minPanel1)
                     desiredDistance = minPanel1;
                 if (desiredDistance > maxDistance)
                     desiredDistance = maxDistance;
 
+                // Solo aplicar si es válido
                 if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
                 {
                     split.SplitterDistance = desiredDistance;
@@ -143,7 +150,7 @@ namespace DatabaseManager.Forms
             }
             catch (Exception ex)
             {
-               
+                // Si falla, usar valores por defecto seguros
                 System.Diagnostics.Debug.WriteLine($"Error configurando splitter: {ex.Message}");
             }
         }
@@ -157,6 +164,7 @@ namespace DatabaseManager.Forms
             dbNode.Nodes.Add(MakeLazyNode("Views", TAG_VIEWS));
             dbNode.Nodes.Add(MakeLazyNode("Procedures", TAG_PROCS));
             dbNode.Nodes.Add(MakeLazyNode("Functions", TAG_FUNCS));
+            dbNode.Nodes.Add(MakeLazyNode("Triggers", TAG_TRIGGERS));
 
             tree.Nodes.Add(dbNode);
             dbNode.Expand();
@@ -185,6 +193,7 @@ namespace DatabaseManager.Forms
                     else if (tag == TAG_VIEWS) LoadObjects(node, _meta.GetViews());
                     else if (tag == TAG_PROCS) LoadObjects(node, _meta.GetProcedures());
                     else if (tag == TAG_FUNCS) LoadObjects(node, _meta.GetFunctions());
+                    else if (tag == TAG_TRIGGERS) LoadObjects(node, _meta.GetTriggers());
                 }
             }
             catch (Exception ex)
@@ -231,41 +240,14 @@ namespace DatabaseManager.Forms
 
         private void BuildContextMenus()
         {
+            // Menú contextual para el nodo Database (raíz)
             ctxDb = new ContextMenuStrip();
             var miNewQuery = new ToolStripMenuItem("New Query");
             miNewQuery.Click += (_, __) => OpenQueryTab("");
             ctxDb.Items.Add(miNewQuery);
 
-            ctxObject = new ContextMenuStrip();
-
-            var miViewData = new ToolStripMenuItem("Ver datos (TOP 200)");
-            miViewData.Click += (_, __) => OpenTableDataTab();
-
-            var miViewCols = new ToolStripMenuItem("Ver columnas");
-            miViewCols.Click += (_, __) => OpenColumnsTab();
-
-            var miViewDDL = new ToolStripMenuItem("Ver DDL");
-            miViewDDL.Click += (_, __) => OpenDdlTab();
-
-            var miQuery = new ToolStripMenuItem("New Query");
-            miQuery.Click += (_, __) =>
-            {
-                if (TryGetSelectedObject(out string schema, out string name))
-                {
-                    string parentTag = tree.SelectedNode.Parent?.Parent?.Tag?.ToString() ?? "";
-                    string sql = parentTag == TAG_TABLES
-                        ? $"SELECT TOP 200 * FROM [{schema}].[{name}];"
-                        : $"SELECT * FROM [{schema}].[{name}];";
-                    OpenQueryTab(sql);
-                }
-                else OpenQueryTab("");
-            };
-
-            ctxObject.Items.Add(miViewData);
-            ctxObject.Items.Add(miViewCols);
-            ctxObject.Items.Add(miViewDDL);
-            ctxObject.Items.Add(new ToolStripSeparator());
-            ctxObject.Items.Add(miQuery);
+            // El menú ctxObject ya no se usa, los menús se crean dinámicamente
+            // según el tipo de objeto en ShowContextMenuForObject()
         }
 
         private void Tree_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
@@ -283,9 +265,114 @@ namespace DatabaseManager.Forms
 
                 if (tag == TAG_OBJECT)
                 {
-                    ctxObject.Show(tree, e.Location);
+                    // Determinar el tipo de objeto para mostrar menú contextual apropiado
+                    string parentTag = e.Node.Parent?.Parent?.Tag?.ToString() ?? "";
+                    ShowContextMenuForObject(parentTag, e.Location);
                 }
             }
+        }
+
+        /// <summary>
+        /// Muestra el menú contextual apropiado según el tipo de objeto
+        /// </summary>
+        private void ShowContextMenuForObject(string objectType, System.Drawing.Point location)
+        {
+            var contextMenu = new ContextMenuStrip();
+
+            switch (objectType)
+            {
+                case TAG_TABLES:
+                    // TABLAS: Ver datos, Ver columnas, Ver DDL, New Query
+                    contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 200)", (s, e) => OpenTableDataTab()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    contextMenu.Items.Add(new ToolStripSeparator());
+                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    break;
+
+                case TAG_VIEWS:
+                    // VISTAS: Ver datos, Ver columnas, Ver DDL, New Query
+                    contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 1000)", (s, e) => OpenTableDataTab()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    contextMenu.Items.Add(new ToolStripSeparator());
+                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    break;
+
+                case TAG_PROCS:
+                    // PROCEDIMIENTOS: Solo Ver DDL y New Query
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    contextMenu.Items.Add(new ToolStripSeparator());
+                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    break;
+
+                case TAG_FUNCS:
+                    // FUNCIONES: Solo Ver DDL y New Query
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    contextMenu.Items.Add(new ToolStripSeparator());
+                    contextMenu.Items.Add(CreateMenuItem("New Query", (s, e) => CreateQueryForSelectedObject()));
+                    break;
+
+                case TAG_TRIGGERS:
+                    // TRIGGERS: Solo Ver DDL (no tiene sentido hacer query sobre un trigger)
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    break;
+
+                default:
+                    // Fallback: solo mostrar DDL
+                    contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
+                    break;
+            }
+
+            contextMenu.Show(tree, location);
+        }
+
+        /// <summary>
+        /// Helper para crear menu items más fácilmente
+        /// </summary>
+        private ToolStripMenuItem CreateMenuItem(string text, EventHandler onClick)
+        {
+            var item = new ToolStripMenuItem(text);
+            item.Click += onClick;
+            return item;
+        }
+
+        /// <summary>
+        /// Crea un query apropiado según el objeto seleccionado
+        /// </summary>
+        private void CreateQueryForSelectedObject()
+        {
+            if (!TryGetSelectedObject(out string schema, out string name))
+            {
+                OpenQueryTab("");
+                return;
+            }
+
+            string parentTag = tree.SelectedNode?.Parent?.Parent?.Tag?.ToString() ?? "";
+            string sql = "";
+
+            switch (parentTag)
+            {
+                case TAG_TABLES:
+                    sql = $"SELECT TOP 200 * FROM [{schema}].[{name}];";
+                    break;
+                case TAG_VIEWS:
+                    sql = $"SELECT TOP 1000 * FROM [{schema}].[{name}];";
+                    break;
+                case TAG_PROCS:
+                    // Para procedures, generar template de ejecución
+                    sql = $"-- Execute stored procedure\nEXEC [{schema}].[{name}]\n    -- @param1 = value1,\n    -- @param2 = value2;";
+                    break;
+                case TAG_FUNCS:
+                    // Para funciones, generar template de SELECT
+                    sql = $"-- Call function\nSELECT [{schema}].[{name}](\n    -- param1,\n    -- param2\n);";
+                    break;
+                default:
+                    sql = "";
+                    break;
+            }
+
+            OpenQueryTab(sql);
         }
 
         private bool TryGetSelectedObject(out string schema, out string name)
@@ -373,9 +460,29 @@ namespace DatabaseManager.Forms
 
             string parentTag = tree.SelectedNode?.Parent?.Parent?.Tag?.ToString() ?? "";
 
-            string ddlText = parentTag == TAG_TABLES
-                ? _ddl.GetTableDDL(schema, objName)
-                : _ddl.GetModuleDDL(schema, objName);
+            // Determinar el tipo de objeto y llamar al método correcto
+            string ddlText;
+            switch (parentTag)
+            {
+                case TAG_TABLES:
+                    ddlText = _ddl.GetTableDDL(schema, objName);
+                    break;
+                case TAG_VIEWS:
+                    ddlText = _ddl.GetViewDDL(schema, objName);
+                    break;
+                case TAG_PROCS:
+                    ddlText = _ddl.GetProcedureDDL(schema, objName);
+                    break;
+                case TAG_FUNCS:
+                    ddlText = _ddl.GetFunctionDDL(schema, objName);
+                    break;
+                case TAG_TRIGGERS:
+                    ddlText = _ddl.GetTriggerDDL(schema, objName);
+                    break;
+                default:
+                    ddlText = $"-- Tipo de objeto desconocido: {parentTag}";
+                    break;
+            }
 
             string key = $"DDL|{schema}.{objName}";
             var page = UpsertTab(key, $"DDL: {objName}");
@@ -385,10 +492,11 @@ namespace DatabaseManager.Forms
             {
                 Dock = DockStyle.Fill,
                 Multiline = true,
-                ReadOnly = true,
+                ReadOnly = true,  // IMPORTANTE: ReadOnly para evitar ediciones accidentales
                 ScrollBars = ScrollBars.Both,
                 WordWrap = false,
-                Font = new Font("Consolas", 10, FontStyle.Regular)
+                Font = new Font("Consolas", 10, FontStyle.Regular),
+                BackColor = Color.FromArgb(250, 250, 250)  // Fondo ligeramente gris para indicar read-only
             };
 
             txt.Text = ddlText;
@@ -411,7 +519,7 @@ namespace DatabaseManager.Forms
                 Orientation = Orientation.Horizontal,
                 FixedPanel = FixedPanel.Panel2,
                 IsSplitterFixed = false
-               
+                // NO establecer MinSize aquí
             };
 
             var editorPanel = new Panel
@@ -485,6 +593,7 @@ namespace DatabaseManager.Forms
 
             page.Controls.Add(splitQ);
 
+            // SOLUCIÓN DEFINITIVA: Timer para configurar el splitter
             System.Windows.Forms.Timer setupTimer = null;
             setupTimer = new System.Windows.Forms.Timer { Interval = 50 };
             int attempts = 0;
@@ -504,14 +613,16 @@ namespace DatabaseManager.Forms
 
                     int totalHeight = splitQ.ClientSize.Height;
 
-                    if (totalHeight > 100) 
+                    if (totalHeight > 100) // Tenemos altura válida
                     {
+                        // Configurar tamaños mínimos
                         int minPanel1 = Math.Min(150, totalHeight / 3);
                         int minPanel2 = Math.Min(150, totalHeight / 3);
 
                         splitQ.Panel1MinSize = minPanel1;
                         splitQ.Panel2MinSize = minPanel2;
 
+                        // Calcular distancia deseada (60% para el editor)
                         int desiredDistance = (int)(totalHeight * 0.60);
                         int maxDistance = totalHeight - minPanel2 - splitQ.SplitterWidth;
 
@@ -520,10 +631,12 @@ namespace DatabaseManager.Forms
                         if (desiredDistance > maxDistance)
                             desiredDistance = maxDistance;
 
+                        // Aplicar
                         if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
                         {
                             splitQ.SplitterDistance = desiredDistance;
 
+                            // Éxito - detener el timer
                             setupTimer.Stop();
                             setupTimer.Dispose();
                         }
@@ -531,7 +644,7 @@ namespace DatabaseManager.Forms
                 }
                 catch
                 {
-                   
+                    // Ignorar errores y seguir intentando
                 }
             };
 
