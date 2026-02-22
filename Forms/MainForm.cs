@@ -60,12 +60,11 @@ namespace DatabaseManager.Forms
                 Orientation = Orientation.Vertical,
                 FixedPanel = FixedPanel.Panel1,
                 IsSplitterFixed = false,
-                // CRÍTICO: NO establecer Panel1MinSize y Panel2MinSize aquí
+             
             };
 
             Controls.Add(split);
 
-            // SOLUCIÓN ROBUSTA: Usar evento Shown con doble BeginInvoke
             this.Shown += MainForm_Shown;
 
             tree = new TreeView
@@ -93,10 +92,9 @@ namespace DatabaseManager.Forms
             tabs = new TabControl
             {
                 Dock = DockStyle.Fill,
-                Padding = new Point(12, 4)  // AGREGADO: Padding para que quepa el texto y el botón X
+                Padding = new Point(12, 4)  
             };
 
-            // AGREGADO: Habilitar el cierre de pestañas con botón X
             tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabs.DrawItem += Tabs_DrawItem;
             tabs.MouseDown += Tabs_MouseDown;
@@ -108,9 +106,7 @@ namespace DatabaseManager.Forms
             BuildContextMenus();
         }
 
-        /// <summary>
-        /// Dibuja cada pestaña con un botón de cerrar (X)
-        /// </summary>
+    
         private void Tabs_DrawItem(object sender, DrawItemEventArgs e)
         {
             try
@@ -118,7 +114,6 @@ namespace DatabaseManager.Forms
                 TabPage page = tabs.TabPages[e.Index];
                 e.Graphics.FillRectangle(new SolidBrush(page.BackColor), e.Bounds);
 
-                // Dibujar el texto de la pestaña
                 string tabText = page.Text;
                 SizeF textSize = e.Graphics.MeasureString(tabText, e.Font);
                 int textX = e.Bounds.Left + 6;
@@ -126,17 +121,14 @@ namespace DatabaseManager.Forms
 
                 e.Graphics.DrawString(tabText, e.Font, Brushes.Black, textX, textY);
 
-                // Dibujar el botón X
                 int closeButtonSize = 14;
                 int closeX = e.Bounds.Right - closeButtonSize - 6;
                 int closeY = e.Bounds.Top + (e.Bounds.Height - closeButtonSize) / 2;
 
                 Rectangle closeRect = new Rectangle(closeX, closeY, closeButtonSize, closeButtonSize);
 
-                // Fondo del botón X (rojo claro)
                 e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(220, 80, 80)), closeRect);
 
-                // Dibujar la X
                 using (Pen whitePen = new Pen(Color.White, 2))
                 {
                     e.Graphics.DrawLine(whitePen,
@@ -152,9 +144,7 @@ namespace DatabaseManager.Forms
             catch { }
         }
 
-        /// <summary>
-        /// Detecta el click en el botón X para cerrar la pestaña
-        /// </summary>
+      
         private void Tabs_MouseDown(object sender, MouseEventArgs e)
         {
             try
@@ -163,16 +153,14 @@ namespace DatabaseManager.Forms
                 {
                     Rectangle tabRect = tabs.GetTabRect(i);
 
-                    // Área del botón X
                     int closeButtonSize = 14;
                     int closeX = tabRect.Right - closeButtonSize - 6;
                     int closeY = tabRect.Top + (tabRect.Height - closeButtonSize) / 2;
                     Rectangle closeRect = new Rectangle(closeX, closeY, closeButtonSize, closeButtonSize);
 
-                    // Si se hizo click en el botón X
                     if (closeRect.Contains(e.Location))
                     {
-                        // Cerrar la pestaña
+                      
                         tabs.TabPages.RemoveAt(i);
                         return;
                     }
@@ -183,7 +171,7 @@ namespace DatabaseManager.Forms
 
         private void MainForm_Shown(object sender, EventArgs e)
         {
-            // Doble BeginInvoke para asegurar que el formulario esté completamente renderizado
+          
             BeginInvoke(new Action(() =>
             {
                 BeginInvoke(new Action(() =>
@@ -201,27 +189,24 @@ namespace DatabaseManager.Forms
 
                 int totalWidth = split.ClientSize.Width;
 
-                // Verificar que tenemos un ancho válido
+            
                 if (totalWidth <= 100) return;
 
-                // Establecer tamaños mínimos AHORA que tenemos dimensiones reales
                 int minPanel1 = Math.Min(200, totalWidth / 4);
                 int minPanel2 = Math.Min(400, totalWidth / 2);
 
                 split.Panel1MinSize = minPanel1;
                 split.Panel2MinSize = minPanel2;
 
-                // Calcular la distancia deseada
+              
                 int desiredDistance = 360;
                 int maxDistance = totalWidth - minPanel2 - split.SplitterWidth;
 
-                // Asegurar que está en el rango válido
                 if (desiredDistance < minPanel1)
                     desiredDistance = minPanel1;
                 if (desiredDistance > maxDistance)
                     desiredDistance = maxDistance;
 
-                // Solo aplicar si es válido
                 if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
                 {
                     split.SplitterDistance = desiredDistance;
@@ -229,7 +214,7 @@ namespace DatabaseManager.Forms
             }
             catch (Exception ex)
             {
-                // Si falla, usar valores por defecto seguros
+               
                 System.Diagnostics.Debug.WriteLine($"Error configurando splitter: {ex.Message}");
             }
         }
@@ -319,7 +304,7 @@ namespace DatabaseManager.Forms
 
         private void BuildContextMenus()
         {
-            // Menú contextual para el nodo Database (raíz)
+    
             ctxDb = new ContextMenuStrip();
 
             var miNewQuery = new ToolStripMenuItem("New Query");
@@ -332,8 +317,6 @@ namespace DatabaseManager.Forms
             ctxDb.Items.Add(new ToolStripSeparator());
             ctxDb.Items.Add(miRefresh);
 
-            // El menú ctxObject ya no se usa, los menús se crean dinámicamente
-            // según el tipo de objeto en ShowContextMenuForObject()
         }
 
         private void Tree_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
@@ -351,16 +334,14 @@ namespace DatabaseManager.Forms
 
                 if (tag == TAG_OBJECT)
                 {
-                    // Determinar el tipo de objeto para mostrar menú contextual apropiado
+                   
                     string parentTag = e.Node.Parent?.Parent?.Tag?.ToString() ?? "";
                     ShowContextMenuForObject(parentTag, e.Location);
                 }
             }
         }
 
-        /// <summary>
-        /// Muestra el menú contextual apropiado según el tipo de objeto
-        /// </summary>
+    
         private void ShowContextMenuForObject(string objectType, System.Drawing.Point location)
         {
             var contextMenu = new ContextMenuStrip();
@@ -368,7 +349,7 @@ namespace DatabaseManager.Forms
             switch (objectType)
             {
                 case TAG_TABLES:
-                    // TABLAS: Ver datos, Ver columnas, Ver DDL
+               
                     contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 200)", (s, e) => OpenTableDataTab()));
                     contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
                     contextMenu.Items.Add(new ToolStripSeparator());
@@ -376,7 +357,7 @@ namespace DatabaseManager.Forms
                     break;
 
                 case TAG_VIEWS:
-                    // VISTAS: Ver datos, Ver columnas, Ver DDL
+                  
                     contextMenu.Items.Add(CreateMenuItem("Ver datos (TOP 1000)", (s, e) => OpenTableDataTab()));
                     contextMenu.Items.Add(CreateMenuItem("Ver columnas", (s, e) => OpenColumnsTab()));
                     contextMenu.Items.Add(new ToolStripSeparator());
@@ -384,22 +365,22 @@ namespace DatabaseManager.Forms
                     break;
 
                 case TAG_PROCS:
-                    // PROCEDIMIENTOS: Solo Ver DDL
+                   
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
                 case TAG_FUNCS:
-                    // FUNCIONES: Solo Ver DDL
+                  
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
                 case TAG_TRIGGERS:
-                    // TRIGGERS: Solo Ver DDL
+                  
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
 
                 default:
-                    // Fallback: solo mostrar DDL
+                    
                     contextMenu.Items.Add(CreateMenuItem("Ver DDL", (s, e) => OpenDdlTab()));
                     break;
             }
@@ -407,9 +388,7 @@ namespace DatabaseManager.Forms
             contextMenu.Show(tree, location);
         }
 
-        /// <summary>
-        /// Helper para crear menu items más fácilmente
-        /// </summary>
+     
         private ToolStripMenuItem CreateMenuItem(string text, EventHandler onClick)
         {
             var item = new ToolStripMenuItem(text);
@@ -502,7 +481,6 @@ namespace DatabaseManager.Forms
 
             string parentTag = tree.SelectedNode?.Parent?.Parent?.Tag?.ToString() ?? "";
 
-            // Determinar el tipo de objeto y llamar al método correcto
             string ddlText;
             switch (parentTag)
             {
@@ -534,11 +512,11 @@ namespace DatabaseManager.Forms
             {
                 Dock = DockStyle.Fill,
                 Multiline = true,
-                ReadOnly = true,  // IMPORTANTE: ReadOnly para evitar ediciones accidentales
+                ReadOnly = true,  
                 ScrollBars = ScrollBars.Both,
                 WordWrap = false,
                 Font = new Font("Consolas", 10, FontStyle.Regular),
-                BackColor = Color.FromArgb(250, 250, 250)  // Fondo ligeramente gris para indicar read-only
+                BackColor = Color.FromArgb(250, 250, 250)  
             };
 
             txt.Text = ddlText;
@@ -552,7 +530,7 @@ namespace DatabaseManager.Forms
             _sqlTabCounter++;
 
             var key = $"SQL|{_sqlTabCounter}";
-            var page = UpsertTab(key, $"Query{_sqlTabCounter}");  // CAMBIADO: SQLQuery{n} → Query{n}
+            var page = UpsertTab(key, $"Query{_sqlTabCounter}");  
             page.Controls.Clear();
 
             var splitQ = new SplitContainer
@@ -561,7 +539,7 @@ namespace DatabaseManager.Forms
                 Orientation = Orientation.Horizontal,
                 FixedPanel = FixedPanel.Panel2,
                 IsSplitterFixed = false
-                // NO establecer MinSize aquí
+          
             };
 
             var editorPanel = new Panel
@@ -635,7 +613,6 @@ namespace DatabaseManager.Forms
 
             page.Controls.Add(splitQ);
 
-            // SOLUCIÓN DEFINITIVA: Timer para configurar el splitter
             System.Windows.Forms.Timer setupTimer = null;
             setupTimer = new System.Windows.Forms.Timer { Interval = 50 };
             int attempts = 0;
@@ -655,16 +632,14 @@ namespace DatabaseManager.Forms
 
                     int totalHeight = splitQ.ClientSize.Height;
 
-                    if (totalHeight > 100) // Tenemos altura válida
+                    if (totalHeight > 100) 
                     {
-                        // Configurar tamaños mínimos
                         int minPanel1 = Math.Min(150, totalHeight / 3);
                         int minPanel2 = Math.Min(150, totalHeight / 3);
 
                         splitQ.Panel1MinSize = minPanel1;
                         splitQ.Panel2MinSize = minPanel2;
 
-                        // Calcular distancia deseada (60% para el editor)
                         int desiredDistance = (int)(totalHeight * 0.60);
                         int maxDistance = totalHeight - minPanel2 - splitQ.SplitterWidth;
 
@@ -673,12 +648,10 @@ namespace DatabaseManager.Forms
                         if (desiredDistance > maxDistance)
                             desiredDistance = maxDistance;
 
-                        // Aplicar
                         if (desiredDistance >= minPanel1 && desiredDistance <= maxDistance)
                         {
                             splitQ.SplitterDistance = desiredDistance;
 
-                            // Éxito - detener el timer
                             setupTimer.Stop();
                             setupTimer.Dispose();
                         }
@@ -686,7 +659,7 @@ namespace DatabaseManager.Forms
                 }
                 catch
                 {
-                    // Ignorar errores y seguir intentando
+                    
                 }
             };
 

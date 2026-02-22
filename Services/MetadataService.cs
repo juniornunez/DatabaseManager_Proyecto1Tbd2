@@ -73,7 +73,6 @@ namespace DatabaseManager.Services
                 ORDER BY OBJECT_SCHEMA_NAME(t.object_id), t.name;");
         }
 
-        // AGREGADO: Método GetColumns que funciona con tablas y vistas
         public DataTable GetColumns(string schema, string objectName)
         {
             string sql = $@"
@@ -96,7 +95,6 @@ namespace DatabaseManager.Services
             return _conn.ExecuteSelect(sql);
         }
 
-        // Método auxiliar para escapar comillas simples en SQL
         private string EscapeSql(string value)
         {
             return value?.Replace("'", "''") ?? "";

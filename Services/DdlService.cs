@@ -13,9 +13,6 @@ namespace DatabaseManager.Services
             _conn = conn;
         }
 
-        /// <summary>
-        /// Obtiene el DDL completo de una tabla con todas sus columnas, constraints, índices, etc.
-        /// </summary>
         public string GetTableDDL(string schema, string tableName)
         {
             try
@@ -27,10 +24,8 @@ namespace DatabaseManager.Services
                 sb.AppendLine($"-- =============================================");
                 sb.AppendLine();
 
-                // 1. CREATE TABLE statement
                 sb.AppendLine($"CREATE TABLE [{schema}].[{tableName}] (");
 
-                // Obtener columnas
                 var columns = GetTableColumns(schema, tableName);
                 for (int i = 0; i < columns.Rows.Count; i++)
                 {
@@ -47,7 +42,6 @@ namespace DatabaseManager.Services
                 sb.AppendLine(");");
                 sb.AppendLine();
 
-                // 2. Primary Key
                 string pkDdl = GetPrimaryKeyDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(pkDdl))
                 {
@@ -55,7 +49,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // 3. Unique Constraints
                 string uniqueDdl = GetUniqueConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(uniqueDdl))
                 {
@@ -63,7 +56,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // 4. Foreign Keys
                 string fkDdl = GetForeignKeysDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(fkDdl))
                 {
@@ -71,7 +63,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // 5. Check Constraints
                 string checkDdl = GetCheckConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(checkDdl))
                 {
@@ -79,7 +70,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // 6. Indexes (non-clustered, non-PK)
                 string indexDdl = GetIndexesDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(indexDdl))
                 {
@@ -87,7 +77,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // 7. Default Constraints (si no se incluyeron en la definición de columna)
                 string defaultDdl = GetDefaultConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(defaultDdl))
                 {
@@ -105,9 +94,6 @@ namespace DatabaseManager.Services
             }
         }
 
-        /// <summary>
-        /// Obtiene el DDL de una vista
-        /// </summary>
         public string GetViewDDL(string schema, string viewName)
         {
             try
@@ -145,9 +131,7 @@ namespace DatabaseManager.Services
             }
         }
 
-        /// <summary>
-        /// Obtiene el DDL de un stored procedure
-        /// </summary>
+        
         public string GetProcedureDDL(string schema, string procName)
         {
             try
@@ -185,9 +169,6 @@ namespace DatabaseManager.Services
             }
         }
 
-        /// <summary>
-        /// Obtiene el DDL de una función
-        /// </summary>
         public string GetFunctionDDL(string schema, string functionName)
         {
             try
@@ -225,9 +206,6 @@ namespace DatabaseManager.Services
             }
         }
 
-        /// <summary>
-        /// Obtiene el DDL de un trigger
-        /// </summary>
         public string GetTriggerDDL(string schema, string triggerName)
         {
             try
@@ -238,8 +216,7 @@ namespace DatabaseManager.Services
                 sb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 sb.AppendLine($"-- =============================================");
                 sb.AppendLine();
-
-                // Obtener información del trigger
+                
                 string sqlInfo = $@"
                     SELECT 
                         t.name AS TriggerName,
@@ -265,7 +242,6 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
-                // Obtener definición del trigger
                 string sql = $@"
                     SELECT OBJECT_DEFINITION(OBJECT_ID('{EscapeSql(schema)}.{EscapeSql(triggerName)}')) AS Definition;";
 
@@ -292,11 +268,7 @@ namespace DatabaseManager.Services
             }
         }
 
-        // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
-
-        /// <summary>
-        /// Obtiene las columnas de una tabla con toda su información
-        /// </summary>
+        
         private DataTable GetTableColumns(string schema, string tableName)
         {
             string sql = $@"
@@ -324,9 +296,7 @@ namespace DatabaseManager.Services
             return _conn.ExecuteSelect(sql);
         }
 
-        /// <summary>
-        /// Formatea una definición de columna completa
-        /// </summary>
+       
         private string FormatColumnDefinition(DataRow col)
         {
             var sb = new StringBuilder();
@@ -346,24 +316,19 @@ namespace DatabaseManager.Services
 
             if (isComputed)
             {
-                // Columna computada
                 sb.Append($"AS {computedFormula}");
             }
             else
             {
-                // Tipo de dato
                 sb.Append(FormatDataType(dataType, maxLength, precision, scale));
 
-                // IDENTITY
                 if (isIdentity)
                 {
                     sb.Append(" IDENTITY(1,1)");
                 }
 
-                // NULL / NOT NULL
                 sb.Append(isNullable ? " NULL" : " NOT NULL");
 
-                // DEFAULT (si existe y no es columna computada)
                 if (!string.IsNullOrEmpty(defaultValue))
                 {
                     sb.Append($" DEFAULT {defaultValue}");
@@ -373,9 +338,6 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Formatea el tipo de dato con su tamaño/precisión
-        /// </summary>
         private string FormatDataType(string dataType, int maxLength, byte precision, byte scale)
         {
             switch (dataType.ToLower())
@@ -407,9 +369,6 @@ namespace DatabaseManager.Services
             }
         }
 
-        /// <summary>
-        /// Obtiene el DDL de la Primary Key
-        /// </summary>
         private string GetPrimaryKeyDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -449,9 +408,6 @@ namespace DatabaseManager.Services
             return string.Empty;
         }
 
-        /// <summary>
-        /// Obtiene los DDL de UNIQUE constraints
-        /// </summary>
         private string GetUniqueConstraintsDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -489,9 +445,6 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Obtiene los DDL de Foreign Keys
-        /// </summary>
         private string GetForeignKeysDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -553,9 +506,6 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Obtiene los DDL de Check Constraints
-        /// </summary>
         private string GetCheckConstraintsDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -587,9 +537,6 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Obtiene los DDL de Indexes (que no sean PK)
-        /// </summary>
         private string GetIndexesDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -656,19 +603,12 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
-        /// <summary>
-        /// Obtiene los DDL de Default Constraints (standalone)
-        /// </summary>
         private string GetDefaultConstraintsDDL(string schema, string tableName)
         {
-            // Este método es por si queremos los defaults como ALTER TABLE separados
-            // Ya los incluimos en la definición de columna, así que lo dejamos vacío
+
             return string.Empty;
         }
 
-        /// <summary>
-        /// Escapa comillas simples para prevenir SQL injection
-        /// </summary>
         private string EscapeSql(string value)
         {
             return value?.Replace("'", "''") ?? "";

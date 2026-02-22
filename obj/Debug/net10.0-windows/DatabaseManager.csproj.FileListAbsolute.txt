@@ -55,3 +55,5 @@ C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\Databas
 C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\DatabaseManager\obj\Debug\net10.0-windows\DatabaseManager.pdb
 C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\DatabaseManager\obj\Debug\net10.0-windows\DatabaseManager.genruntimeconfig.cache
 C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\DatabaseManager\obj\Debug\net10.0-windows\ref\DatabaseManager.dll
+C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\DatabaseManager\obj\Debug\net10.0-windows\DatabaseManager.Forms.InicioForm.resources
+C:\Users\Junior Nuñes\Documents\Microsoft Visual Studio\DatabaseManager\DatabaseManager\obj\Debug\net10.0-windows\DatabaseManager.csproj.GenerateResource.cache
