@@ -1,12 +1,20 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using DatabaseManager.Services;
+using DatabaseManager.Models;
 
 namespace DatabaseManager.Forms
 {
     public class InicioForm : Form
     {
+        private Panel pnlLeft;
+        private Panel pnlRight;
+        private ListBox lstConnections;
+        private Label lblSavedConnections;
+        private Button btnNewConnection;
+
         private TextBox txtNombre;
         private TextBox txtServer;
         private TextBox txtDatabase;
@@ -17,58 +25,118 @@ namespace DatabaseManager.Forms
         private TextBox txtPass;
         private Button btnProbar;
         private Button btnConectar;
+        private Button btnSaveConnection;
         private Label lblEstado;
 
         private readonly ConnectionService _conn = new ConnectionService();
+        private List<SavedConnection> _savedConnections;
+        private SavedConnection _selectedConnection;
 
         public InicioForm()
         {
+            _savedConnections = ConnectionManager.LoadConnections();
             BuildUI();
+            LoadConnectionsList();
         }
 
         private void BuildUI()
         {
             Text = "Database Manager - Conexión";
-            Size = new Size(650, 500);
+            Size = new Size(950, 500);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             BackColor = Color.White;
 
-            var panel = new Panel
+            pnlLeft = new Panel
             {
-                Location = new Point(20, 20),
-                Size = new Size(600, 440),
-                BorderStyle = BorderStyle.None,
+                Location = new Point(0, 0),
+                Size = new Size(280, 500),
+                BackColor = Color.FromArgb(250, 250, 250),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            lblSavedConnections = new Label
+            {
+                Text = "Conexiones Guardadas",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Location = new Point(10, 15),
+                Size = new Size(260, 25),
+                ForeColor = Color.FromArgb(40, 40, 40)
+            };
+
+            lstConnections = new ListBox
+            {
+                Location = new Point(10, 50),
+                Size = new Size(258, 380),
+                Font = new Font("Segoe UI", 9),
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 60,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            lstConnections.DrawItem += LstConnections_DrawItem;
+            lstConnections.SelectedIndexChanged += LstConnections_SelectedIndexChanged;
+            lstConnections.MouseDown += LstConnections_MouseDown;
+
+            btnNewConnection = new Button
+            {
+                Text = "Nueva Conexión",
+                Location = new Point(10, 440),
+                Size = new Size(258, 35),
+                BackColor = Color.FromArgb(0, 120, 215),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnNewConnection.FlatAppearance.BorderSize = 0;
+            btnNewConnection.Click += BtnNewConnection_Click;
+
+            pnlLeft.Controls.Add(lblSavedConnections);
+            pnlLeft.Controls.Add(lstConnections);
+            pnlLeft.Controls.Add(btnNewConnection);
+
+            pnlRight = new Panel
+            {
+                Location = new Point(280, 0),
+                Size = new Size(670, 500),
                 BackColor = Color.White
             };
 
+            BuildRightPanel();
+
+            Controls.Add(pnlLeft);
+            Controls.Add(pnlRight);
+        }
+
+        private void BuildRightPanel()
+        {
             var lblTitle = new Label
             {
                 Text = "Detalles de la Conexión",
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
-                Location = new Point(10, 10),
-                Size = new Size(580, 30),
+                Location = new Point(20, 20),
+                Size = new Size(630, 30),
                 ForeColor = Color.FromArgb(40, 40, 40)
             };
 
-            int y = 55;
+            int y = 65;
 
-            panel.Controls.Add(MkLabel("Nombre:", 10, y));
-            txtNombre = MkTextBox(170, y);
+            pnlRight.Controls.Add(MkLabel("Nombre:", 20, y));
+            txtNombre = MkTextBox(180, y);
             txtNombre.Text = "ReplicacionDemo";
-            panel.Controls.Add(txtNombre);
+            pnlRight.Controls.Add(txtNombre);
             y += 40;
 
-            panel.Controls.Add(MkLabel("Servidor:", 10, y));
-            txtServer = MkTextBox(170, y);
+            pnlRight.Controls.Add(MkLabel("Servidor:", 20, y));
+            txtServer = MkTextBox(180, y);
             txtServer.Text = "DESKTOP-S4DNI64";
-            panel.Controls.Add(txtServer);
+            pnlRight.Controls.Add(txtServer);
 
             var btnServerHelp = new Button
             {
                 Text = "?",
-                Location = new Point(530, y - 2),
+                Location = new Point(540, y - 2),
                 Size = new Size(25, 25),
                 Font = new Font("Segoe UI", 8, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
@@ -88,94 +156,94 @@ namespace DatabaseManager.Forms
                 "Ayuda - Servidor",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-            panel.Controls.Add(btnServerHelp);
+            pnlRight.Controls.Add(btnServerHelp);
             y += 40;
 
-            panel.Controls.Add(MkLabel("Base de Datos:", 10, y));
-            txtDatabase = MkTextBox(170, y);
+            pnlRight.Controls.Add(MkLabel("Base de Datos:", 20, y));
+            txtDatabase = MkTextBox(180, y);
             txtDatabase.Text = "ReplicacionDemo";
-            panel.Controls.Add(txtDatabase);
+            pnlRight.Controls.Add(txtDatabase);
             y += 50;
 
             var separator1 = new Label
             {
                 BorderStyle = BorderStyle.Fixed3D,
                 Height = 2,
-                Location = new Point(10, y),
-                Size = new Size(580, 2)
+                Location = new Point(20, y),
+                Size = new Size(630, 2)
             };
-            panel.Controls.Add(separator1);
+            pnlRight.Controls.Add(separator1);
             y += 15;
 
             var lblAuthTitle = new Label
             {
                 Text = "Tipo de Autenticación:",
                 Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Location = new Point(10, y),
+                Location = new Point(20, y),
                 Size = new Size(200, 20),
                 ForeColor = Color.FromArgb(40, 40, 40)
             };
-            panel.Controls.Add(lblAuthTitle);
+            pnlRight.Controls.Add(lblAuthTitle);
             y += 30;
 
             rbWindowsAuth = new RadioButton
             {
                 Text = "Windows Authentication",
-                Location = new Point(170, y),
+                Location = new Point(180, y),
                 Size = new Size(300, 25),
                 Checked = true,
                 Font = new Font("Segoe UI", 9)
             };
             rbWindowsAuth.CheckedChanged += (_, __) => ToggleAuthFields();
-            panel.Controls.Add(rbWindowsAuth);
+            pnlRight.Controls.Add(rbWindowsAuth);
             y += 30;
 
             rbSqlAuth = new RadioButton
             {
                 Text = "SQL Server Authentication",
-                Location = new Point(170, y),
+                Location = new Point(180, y),
                 Size = new Size(300, 25),
                 Font = new Font("Segoe UI", 9)
             };
             rbSqlAuth.CheckedChanged += (_, __) => ToggleAuthFields();
-            panel.Controls.Add(rbSqlAuth);
+            pnlRight.Controls.Add(rbSqlAuth);
             y += 35;
 
             pnlSqlAuth = new Panel
             {
                 Location = new Point(0, y),
-                Size = new Size(600, 90),
+                Size = new Size(670, 90),
                 BackColor = Color.FromArgb(245, 245, 245),
                 Visible = false
             };
 
-            pnlSqlAuth.Controls.Add(MkLabel("Usuario:", 10, 10));
-            txtUser = MkTextBox(170, 10);
+            pnlSqlAuth.Controls.Add(MkLabel("Usuario:", 20, 10));
+            txtUser = MkTextBox(180, 10);
             txtUser.Text = "sa";
             pnlSqlAuth.Controls.Add(txtUser);
 
-            pnlSqlAuth.Controls.Add(MkLabel("Contraseña:", 10, 50));
-            txtPass = MkTextBox(170, 50);
+            pnlSqlAuth.Controls.Add(MkLabel("Contraseña:", 20, 50));
+            txtPass = MkTextBox(180, 50);
             txtPass.UseSystemPasswordChar = true;
             pnlSqlAuth.Controls.Add(txtPass);
 
-            panel.Controls.Add(pnlSqlAuth);
+            pnlRight.Controls.Add(pnlSqlAuth);
             y += 100;
 
             var separator2 = new Label
             {
                 BorderStyle = BorderStyle.Fixed3D,
                 Height = 2,
-                Location = new Point(10, y),
-                Size = new Size(580, 2)
+                Location = new Point(20, y),
+                Size = new Size(630, 2)
             };
-            panel.Controls.Add(separator2);
+            pnlRight.Controls.Add(separator2);
             y += 20;
 
             btnProbar = new Button
             {
                 Text = "Probar Conexión",
-                Location = new Point(170, y),
+                Location = new Point(180, y),
                 Size = new Size(150, 35),
                 BackColor = Color.FromArgb(100, 150, 200),
                 ForeColor = Color.White,
@@ -186,10 +254,24 @@ namespace DatabaseManager.Forms
             btnProbar.FlatAppearance.BorderSize = 0;
             btnProbar.Click += BtnProbar_Click;
 
+            btnSaveConnection = new Button
+            {
+                Text = "Guardar",
+                Location = new Point(345, y),
+                Size = new Size(100, 35),
+                BackColor = Color.FromArgb(80, 180, 80),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10),
+                Cursor = Cursors.Hand
+            };
+            btnSaveConnection.FlatAppearance.BorderSize = 0;
+            btnSaveConnection.Click += BtnSaveConnection_Click;
+
             btnConectar = new Button
             {
                 Text = "Conectar",
-                Location = new Point(335, y),
+                Location = new Point(460, y),
                 Size = new Size(120, 35),
                 BackColor = Color.FromArgb(0, 120, 215),
                 ForeColor = Color.White,
@@ -203,27 +285,167 @@ namespace DatabaseManager.Forms
             lblEstado = new Label
             {
                 Text = "● Listo para conectar",
-                Location = new Point(10, y + 10),
-                Size = new Size(580, 20),
+                Location = new Point(20, y + 10),
+                Size = new Size(630, 20),
                 Font = new Font("Segoe UI", 9),
                 ForeColor = Color.FromArgb(100, 100, 100)
             };
 
-            panel.Controls.Add(lblTitle);
-            panel.Controls.Add(btnProbar);
-            panel.Controls.Add(btnConectar);
-            panel.Controls.Add(lblEstado);
+            pnlRight.Controls.Add(lblTitle);
+            pnlRight.Controls.Add(btnProbar);
+            pnlRight.Controls.Add(btnSaveConnection);
+            pnlRight.Controls.Add(btnConectar);
+            pnlRight.Controls.Add(lblEstado);
+        }
 
-            Controls.Add(panel);
+        private void LoadConnectionsList()
+        {
+            lstConnections.Items.Clear();
+            foreach (var conn in _savedConnections)
+            {
+                lstConnections.Items.Add(conn);
+            }
+        }
 
-            ToggleAuthFields();
+        private void LstConnections_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+
+            var conn = (SavedConnection)lstConnections.Items[e.Index];
+            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+            e.Graphics.FillRectangle(
+                new SolidBrush(isSelected ? Color.FromArgb(230, 240, 250) : Color.White),
+                e.Bounds
+            );
+
+            int padding = 8;
+            int textX = e.Bounds.Left + padding;
+            int textY = e.Bounds.Top + padding;
+
+            e.Graphics.DrawString(
+                conn.Name,
+                new Font("Segoe UI", 9, FontStyle.Bold),
+                Brushes.Black,
+                textX,
+                textY
+            );
+
+            textY += 18;
+            string details = $"{conn.Server} → {conn.Database}";
+            e.Graphics.DrawString(
+                details,
+                new Font("Segoe UI", 8),
+                Brushes.Gray,
+                textX,
+                textY
+            );
+
+            textY += 16;
+            string authType = conn.UseWindowsAuth ? "Windows Auth" : $"SQL Auth ({conn.Username})";
+            e.Graphics.DrawString(
+                authType,
+                new Font("Segoe UI", 7),
+                Brushes.DarkGray,
+                textX,
+                textY
+            );
+
+            int closeSize = 16;
+            int closeX = e.Bounds.Right - closeSize - padding;
+            int closeY = e.Bounds.Top + (e.Bounds.Height - closeSize) / 2;
+            Rectangle closeRect = new Rectangle(closeX, closeY, closeSize, closeSize);
+
+            e.Graphics.FillRectangle(
+                new SolidBrush(Color.FromArgb(220, 80, 80)),
+                closeRect
+            );
+
+            using (Pen whitePen = new Pen(Color.White, 2))
+            {
+                e.Graphics.DrawLine(whitePen,
+                    closeX + 4, closeY + 4,
+                    closeX + closeSize - 4, closeY + closeSize - 4);
+                e.Graphics.DrawLine(whitePen,
+                    closeX + closeSize - 4, closeY + 4,
+                    closeX + 4, closeY + closeSize - 4);
+            }
+
+            e.Graphics.DrawRectangle(Pens.LightGray, e.Bounds);
+        }
+
+        private void LstConnections_MouseDown(object sender, MouseEventArgs e)
+        {
+            int index = lstConnections.IndexFromPoint(e.Location);
+            if (index < 0) return;
+
+            Rectangle itemRect = lstConnections.GetItemRectangle(index);
+            int closeSize = 16;
+            int padding = 8;
+            int closeX = itemRect.Right - closeSize - padding;
+            int closeY = itemRect.Top + (itemRect.Height - closeSize) / 2;
+            Rectangle closeRect = new Rectangle(closeX, closeY, closeSize, closeSize);
+
+            if (closeRect.Contains(e.Location))
+            {
+                var conn = (SavedConnection)lstConnections.Items[index];
+                var result = MessageBox.Show(
+                    $"¿Eliminar la conexión '{conn.Name}'?",
+                    "Confirmar eliminación",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question
+                );
+
+                if (result == DialogResult.Yes)
+                {
+                    ConnectionManager.DeleteConnection(conn.Id);
+                    _savedConnections = ConnectionManager.LoadConnections();
+                    LoadConnectionsList();
+                    ClearForm();
+                }
+            }
+        }
+
+        private void LstConnections_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (lstConnections.SelectedIndex < 0) return;
+
+            _selectedConnection = (SavedConnection)lstConnections.SelectedItem;
+            LoadConnectionToForm(_selectedConnection);
+        }
+
+        private void LoadConnectionToForm(SavedConnection conn)
+        {
+            txtNombre.Text = conn.Name;
+            txtServer.Text = conn.Server;
+            txtDatabase.Text = conn.Database;
+            rbWindowsAuth.Checked = conn.UseWindowsAuth;
+            rbSqlAuth.Checked = !conn.UseWindowsAuth;
+            txtUser.Text = conn.Username ?? "sa";
+            txtPass.Text = "";
+        }
+
+        private void BtnNewConnection_Click(object sender, EventArgs e)
+        {
+            lstConnections.SelectedIndex = -1;
+            _selectedConnection = null;
+            ClearForm();
+        }
+
+        private void ClearForm()
+        {
+            txtNombre.Text = "Nueva Conexión";
+            txtServer.Text = "DESKTOP-S4DNI64";
+            txtDatabase.Text = "ReplicacionDemo";
+            rbWindowsAuth.Checked = true;
+            txtUser.Text = "sa";
+            txtPass.Text = "";
         }
 
         private void ToggleAuthFields()
         {
             bool useSqlAuth = rbSqlAuth.Checked;
             pnlSqlAuth.Visible = useSqlAuth;
-
             Height = 500;
 
             txtUser.Enabled = useSqlAuth;
@@ -259,6 +481,57 @@ namespace DatabaseManager.Forms
                     throw new Exception("El campo Usuario es requerido.");
 
                 _conn.ConfigureSqlAuth(server, db, user, pass);
+            }
+        }
+
+        private void BtnSaveConnection_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string name = txtNombre.Text.Trim();
+                string server = txtServer.Text.Trim();
+                string db = txtDatabase.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(name))
+                    throw new Exception("El campo Nombre es requerido.");
+
+                if (string.IsNullOrWhiteSpace(server))
+                    throw new Exception("El campo Servidor es requerido.");
+
+                if (string.IsNullOrWhiteSpace(db))
+                    throw new Exception("El campo Base de Datos es requerido.");
+
+                var newConnection = new SavedConnection
+                {
+                    Name = name,
+                    Server = server,
+                    Database = db,
+                    UseWindowsAuth = rbWindowsAuth.Checked,
+                    Username = rbSqlAuth.Checked ? txtUser.Text.Trim() : null
+                };
+
+                if (_selectedConnection != null)
+                {
+                    newConnection.Id = _selectedConnection.Id;
+                }
+
+                ConnectionManager.AddConnection(newConnection);
+                _savedConnections = ConnectionManager.LoadConnections();
+                LoadConnectionsList();
+
+                lblEstado.Text = "● Conexión guardada";
+                lblEstado.ForeColor = Color.Green;
+
+                MessageBox.Show(
+                    "La conexión se ha guardado correctamente.",
+                    "Conexión Guardada",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -345,8 +618,13 @@ namespace DatabaseManager.Forms
                 lblEstado.Text = "● Conectado";
                 lblEstado.ForeColor = Color.Green;
 
+                if (_selectedConnection != null)
+                {
+                    ConnectionManager.UpdateLastUsed(_selectedConnection.Id);
+                }
+
                 var main = new MainForm(_conn);
-                main.FormClosed += (s, args) => Application.Exit(); 
+                main.FormClosed += (s, args) => Application.Exit();
                 main.Show();
                 this.Hide();
             }
