@@ -13,6 +13,9 @@ namespace DatabaseManager.Services
             _conn = conn;
         }
 
+        /// <summary>
+        /// Obtiene el DDL completo de una tabla con todas sus columnas, constraints, índices, etc.
+        /// </summary>
         public string GetTableDDL(string schema, string tableName)
         {
             try
@@ -24,8 +27,10 @@ namespace DatabaseManager.Services
                 sb.AppendLine($"-- =============================================");
                 sb.AppendLine();
 
+                // 1. CREATE TABLE statement
                 sb.AppendLine($"CREATE TABLE [{schema}].[{tableName}] (");
 
+                // Obtener columnas
                 var columns = GetTableColumns(schema, tableName);
                 for (int i = 0; i < columns.Rows.Count; i++)
                 {
@@ -42,6 +47,7 @@ namespace DatabaseManager.Services
                 sb.AppendLine(");");
                 sb.AppendLine();
 
+                // 2. Primary Key
                 string pkDdl = GetPrimaryKeyDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(pkDdl))
                 {
@@ -49,6 +55,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // 3. Unique Constraints
                 string uniqueDdl = GetUniqueConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(uniqueDdl))
                 {
@@ -56,6 +63,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // 4. Foreign Keys
                 string fkDdl = GetForeignKeysDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(fkDdl))
                 {
@@ -63,6 +71,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // 5. Check Constraints
                 string checkDdl = GetCheckConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(checkDdl))
                 {
@@ -70,6 +79,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // 6. Indexes (non-clustered, non-PK)
                 string indexDdl = GetIndexesDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(indexDdl))
                 {
@@ -77,6 +87,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // 7. Default Constraints (si no se incluyeron en la definición de columna)
                 string defaultDdl = GetDefaultConstraintsDDL(schema, tableName);
                 if (!string.IsNullOrEmpty(defaultDdl))
                 {
@@ -94,6 +105,9 @@ namespace DatabaseManager.Services
             }
         }
 
+        /// <summary>
+        /// Obtiene el DDL de una vista
+        /// </summary>
         public string GetViewDDL(string schema, string viewName)
         {
             try
@@ -131,7 +145,9 @@ namespace DatabaseManager.Services
             }
         }
 
-        
+        /// <summary>
+        /// Obtiene el DDL de un stored procedure
+        /// </summary>
         public string GetProcedureDDL(string schema, string procName)
         {
             try
@@ -169,6 +185,9 @@ namespace DatabaseManager.Services
             }
         }
 
+        /// <summary>
+        /// Obtiene el DDL de una función
+        /// </summary>
         public string GetFunctionDDL(string schema, string functionName)
         {
             try
@@ -206,6 +225,9 @@ namespace DatabaseManager.Services
             }
         }
 
+        /// <summary>
+        /// Obtiene el DDL de un trigger
+        /// </summary>
         public string GetTriggerDDL(string schema, string triggerName)
         {
             try
@@ -216,7 +238,8 @@ namespace DatabaseManager.Services
                 sb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 sb.AppendLine($"-- =============================================");
                 sb.AppendLine();
-                
+
+                // Obtener información del trigger
                 string sqlInfo = $@"
                     SELECT 
                         t.name AS TriggerName,
@@ -242,6 +265,7 @@ namespace DatabaseManager.Services
                     sb.AppendLine();
                 }
 
+                // Obtener definición del trigger
                 string sql = $@"
                     SELECT OBJECT_DEFINITION(OBJECT_ID('{EscapeSql(schema)}.{EscapeSql(triggerName)}')) AS Definition;";
 
@@ -268,7 +292,11 @@ namespace DatabaseManager.Services
             }
         }
 
-        
+        // ==================== MÉTODOS PRIVADOS AUXILIARES ====================
+
+        /// <summary>
+        /// Obtiene las columnas de una tabla con toda su información
+        /// </summary>
         private DataTable GetTableColumns(string schema, string tableName)
         {
             string sql = $@"
@@ -296,7 +324,9 @@ namespace DatabaseManager.Services
             return _conn.ExecuteSelect(sql);
         }
 
-       
+        /// <summary>
+        /// Formatea una definición de columna completa
+        /// </summary>
         private string FormatColumnDefinition(DataRow col)
         {
             var sb = new StringBuilder();
@@ -316,19 +346,24 @@ namespace DatabaseManager.Services
 
             if (isComputed)
             {
+                // Columna computada
                 sb.Append($"AS {computedFormula}");
             }
             else
             {
+                // Tipo de dato
                 sb.Append(FormatDataType(dataType, maxLength, precision, scale));
 
+                // IDENTITY
                 if (isIdentity)
                 {
                     sb.Append(" IDENTITY(1,1)");
                 }
 
+                // NULL / NOT NULL
                 sb.Append(isNullable ? " NULL" : " NOT NULL");
 
+                // DEFAULT (si existe y no es columna computada)
                 if (!string.IsNullOrEmpty(defaultValue))
                 {
                     sb.Append($" DEFAULT {defaultValue}");
@@ -338,6 +373,9 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Formatea el tipo de dato con su tamaño/precisión
+        /// </summary>
         private string FormatDataType(string dataType, int maxLength, byte precision, byte scale)
         {
             switch (dataType.ToLower())
@@ -369,6 +407,9 @@ namespace DatabaseManager.Services
             }
         }
 
+        /// <summary>
+        /// Obtiene el DDL de la Primary Key
+        /// </summary>
         private string GetPrimaryKeyDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -408,6 +449,9 @@ namespace DatabaseManager.Services
             return string.Empty;
         }
 
+        /// <summary>
+        /// Obtiene los DDL de UNIQUE constraints
+        /// </summary>
         private string GetUniqueConstraintsDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -445,6 +489,9 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Obtiene los DDL de Foreign Keys
+        /// </summary>
         private string GetForeignKeysDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -506,6 +553,9 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Obtiene los DDL de Check Constraints
+        /// </summary>
         private string GetCheckConstraintsDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -537,6 +587,9 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Obtiene los DDL de Indexes (que no sean PK)
+        /// </summary>
         private string GetIndexesDDL(string schema, string tableName)
         {
             string sql = $@"
@@ -603,10 +656,266 @@ namespace DatabaseManager.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Obtiene los DDL de Default Constraints (standalone)
+        /// </summary>
         private string GetDefaultConstraintsDDL(string schema, string tableName)
         {
-
             return string.Empty;
+        }
+
+        public string GetIndexDDL(string schema, string indexName)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine($"-- DDL for Index [{schema}].[{indexName}]");
+                sb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine();
+
+                string sql = $@"
+                    SELECT 
+                        i.name AS IndexName,
+                        OBJECT_SCHEMA_NAME(i.object_id) AS SchemaName,
+                        OBJECT_NAME(i.object_id) AS TableName,
+                        i.type_desc AS IndexType,
+                        i.is_unique,
+                        i.is_primary_key,
+                        i.is_unique_constraint,
+                        STRING_AGG(
+                            CASE WHEN ic.is_descending_key = 1 
+                            THEN QUOTENAME(c.name) + ' DESC'
+                            ELSE QUOTENAME(c.name) + ' ASC'
+                            END, 
+                            ', '
+                        ) WITHIN GROUP (ORDER BY ic.key_ordinal) AS KeyColumns,
+                        STRING_AGG(
+                            CASE WHEN ic.is_included_column = 1 
+                            THEN QUOTENAME(c.name)
+                            ELSE NULL
+                            END, 
+                            ', '
+                        ) AS IncludeColumns
+                    FROM sys.indexes i
+                    INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id 
+                        AND i.index_id = ic.index_id
+                    INNER JOIN sys.columns c ON ic.object_id = c.object_id 
+                        AND ic.column_id = c.column_id
+                    WHERE i.name = '{EscapeSql(indexName)}'
+                      AND OBJECT_SCHEMA_NAME(i.object_id) = '{EscapeSql(schema)}'
+                    GROUP BY 
+                        i.name, 
+                        i.object_id,
+                        i.type_desc, 
+                        i.is_unique,
+                        i.is_primary_key,
+                        i.is_unique_constraint;";
+
+                var dt = _conn.ExecuteSelect(sql);
+
+                if (dt.Rows.Count > 0)
+                {
+                    var row = dt.Rows[0];
+                    string tableName = row["TableName"].ToString();
+                    string schemaName = row["SchemaName"].ToString();
+                    string indexType = row["IndexType"].ToString();
+                    bool isUnique = Convert.ToBoolean(row["is_unique"]);
+                    bool isPrimaryKey = Convert.ToBoolean(row["is_primary_key"]);
+                    bool isUniqueConstraint = Convert.ToBoolean(row["is_unique_constraint"]);
+                    string keyColumns = row["KeyColumns"].ToString();
+                    string includeColumns = row["IncludeColumns"]?.ToString() ?? "";
+
+                    if (isPrimaryKey)
+                    {
+                        sb.AppendLine($"-- This is a PRIMARY KEY constraint");
+                        sb.AppendLine($"ALTER TABLE [{schemaName}].[{tableName}]");
+                        sb.AppendLine($"    ADD CONSTRAINT [{indexName}] PRIMARY KEY {indexType} ({keyColumns});");
+                    }
+                    else if (isUniqueConstraint)
+                    {
+                        sb.AppendLine($"-- This is a UNIQUE constraint");
+                        sb.AppendLine($"ALTER TABLE [{schemaName}].[{tableName}]");
+                        sb.AppendLine($"    ADD CONSTRAINT [{indexName}] UNIQUE ({keyColumns});");
+                    }
+                    else
+                    {
+                        sb.Append($"CREATE ");
+                        if (isUnique) sb.Append("UNIQUE ");
+                        sb.Append($"{indexType} INDEX [{indexName}]");
+                        sb.AppendLine($" ON [{schemaName}].[{tableName}] ({keyColumns})");
+
+                        if (!string.IsNullOrWhiteSpace(includeColumns))
+                        {
+                            sb.AppendLine($"    INCLUDE ({includeColumns})");
+                        }
+
+                        sb.AppendLine(";");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"-- No se pudo obtener información del índice");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("GO");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"-- Error al generar DDL de índice:\n-- {ex.Message}";
+            }
+        }
+
+        public string GetSequenceDDL(string schema, string sequenceName)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine($"-- DDL for Sequence [{schema}].[{sequenceName}]");
+                sb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine();
+
+                string sql = $@"
+                    SELECT 
+                        seq.name AS SequenceName,
+                        s.name AS SchemaName,
+                        TYPE_NAME(seq.user_type_id) AS DataType,
+                        seq.start_value AS StartValue,
+                        seq.increment AS Increment,
+                        seq.minimum_value AS MinValue,
+                        seq.maximum_value AS MaxValue,
+                        seq.is_cycling AS IsCycling,
+                        seq.current_value AS CurrentValue
+                    FROM sys.sequences seq
+                    INNER JOIN sys.schemas s ON seq.schema_id = s.schema_id
+                    WHERE seq.name = '{EscapeSql(sequenceName)}'
+                      AND s.name = '{EscapeSql(schema)}';";
+
+                var dt = _conn.ExecuteSelect(sql);
+
+                if (dt.Rows.Count > 0)
+                {
+                    var row = dt.Rows[0];
+                    string dataType = row["DataType"].ToString();
+                    long startValue = Convert.ToInt64(row["StartValue"]);
+                    long increment = Convert.ToInt64(row["Increment"]);
+                    long minValue = Convert.ToInt64(row["MinValue"]);
+                    long maxValue = Convert.ToInt64(row["MaxValue"]);
+                    bool isCycling = Convert.ToBoolean(row["IsCycling"]);
+
+                    sb.AppendLine($"CREATE SEQUENCE [{schema}].[{sequenceName}]");
+                    sb.AppendLine($"    AS {dataType}");
+                    sb.AppendLine($"    START WITH {startValue}");
+                    sb.AppendLine($"    INCREMENT BY {increment}");
+                    sb.AppendLine($"    MINVALUE {minValue}");
+                    sb.AppendLine($"    MAXVALUE {maxValue}");
+                    sb.AppendLine($"    {(isCycling ? "CYCLE" : "NO CYCLE")};");
+                }
+                else
+                {
+                    sb.AppendLine($"-- No se pudo obtener información de la secuencia");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("GO");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"-- Error al generar DDL de secuencia:\n-- {ex.Message}";
+            }
+        }
+
+        public string GetUserDDL(string userName)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine($"-- DDL for User [{userName}]");
+                sb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"-- =============================================");
+                sb.AppendLine();
+
+                string sql = $@"
+                    SELECT 
+                        dp.name AS UserName,
+                        dp.type_desc AS UserType,
+                        dp.create_date AS CreateDate,
+                        dp.default_schema_name AS DefaultSchema,
+                        sl.name AS LoginName
+                    FROM sys.database_principals dp
+                    LEFT JOIN sys.server_principals sl ON dp.sid = sl.sid
+                    WHERE dp.name = '{EscapeSql(userName)}';";
+
+                var dt = _conn.ExecuteSelect(sql);
+
+                if (dt.Rows.Count > 0)
+                {
+                    var row = dt.Rows[0];
+                    string userType = row["UserType"].ToString();
+                    string defaultSchema = row["DefaultSchema"]?.ToString() ?? "dbo";
+                    string loginName = row["LoginName"]?.ToString() ?? "";
+
+                    sb.AppendLine($"-- User Type: {userType}");
+                    sb.AppendLine($"-- Created: {row["CreateDate"]}");
+                    sb.AppendLine();
+
+                    if (!string.IsNullOrEmpty(loginName))
+                    {
+                        sb.AppendLine($"CREATE USER [{userName}]");
+                        sb.AppendLine($"    FOR LOGIN [{loginName}]");
+                        sb.AppendLine($"    WITH DEFAULT_SCHEMA = [{defaultSchema}];");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"CREATE USER [{userName}]");
+                        sb.AppendLine($"    WITHOUT LOGIN");
+                        sb.AppendLine($"    WITH DEFAULT_SCHEMA = [{defaultSchema}];");
+                    }
+
+                    sb.AppendLine();
+
+                    string sqlRoles = $@"
+                        SELECT r.name AS RoleName
+                        FROM sys.database_role_members drm
+                        INNER JOIN sys.database_principals r ON drm.role_principal_id = r.principal_id
+                        INNER JOIN sys.database_principals u ON drm.member_principal_id = u.principal_id
+                        WHERE u.name = '{EscapeSql(userName)}';";
+
+                    var dtRoles = _conn.ExecuteSelect(sqlRoles);
+
+                    if (dtRoles.Rows.Count > 0)
+                    {
+                        sb.AppendLine($"-- Role memberships:");
+                        foreach (DataRow roleRow in dtRoles.Rows)
+                        {
+                            string roleName = roleRow["RoleName"].ToString();
+                            sb.AppendLine($"ALTER ROLE [{roleName}] ADD MEMBER [{userName}];");
+                        }
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"-- No se pudo obtener información del usuario");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("GO");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"-- Error al generar DDL de usuario:\n-- {ex.Message}";
+            }
         }
 
         private string EscapeSql(string value)

@@ -12,7 +12,28 @@ namespace DatabaseManager
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            Application.Run(new InicioForm());
+            bool continuar = true;
+
+            while (continuar)
+            {
+                using (var inicioForm = new InicioForm())
+                {
+                    var resultado = inicioForm.ShowDialog();
+
+                    if (resultado == DialogResult.OK)
+                    {
+                        var conn = inicioForm.GetConnectionService();
+                        using (var mainForm = new MainForm(conn))
+                        {
+                            mainForm.ShowDialog();
+                        }
+                    }
+                    else
+                    {
+                        continuar = false;
+                    }
+                }
+            }
         }
     }
 }

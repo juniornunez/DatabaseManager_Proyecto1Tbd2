@@ -69,8 +69,50 @@ namespace DatabaseManager.Services
                 FROM sys.triggers t
                 WHERE t.is_ms_shipped = 0
                   AND OBJECT_SCHEMA_NAME(t.object_id) <> 'sys'
-                  AND t.parent_class = 1  -- Solo triggers de tabla (no triggers de database)
+                  AND t.parent_class = 1
                 ORDER BY OBJECT_SCHEMA_NAME(t.object_id), t.name;");
+        }
+
+        public DataTable GetIndexes()
+        {
+            return _conn.ExecuteSelect(@"
+                SELECT 
+                    OBJECT_SCHEMA_NAME(i.object_id) AS SchemaName,
+                    i.name AS ObjectName
+                FROM sys.indexes i
+                INNER JOIN sys.objects o ON i.object_id = o.object_id
+                WHERE o.is_ms_shipped = 0
+                  AND i.name IS NOT NULL
+                  AND i.type > 0
+                  AND OBJECT_SCHEMA_NAME(i.object_id) <> 'sys'
+                ORDER BY OBJECT_SCHEMA_NAME(i.object_id), i.name;");
+        }
+
+        public DataTable GetSequences()
+        {
+            return _conn.ExecuteSelect(@"
+                SELECT 
+                    s.name AS SchemaName,
+                    seq.name AS ObjectName
+                FROM sys.sequences seq
+                INNER JOIN sys.schemas s ON seq.schema_id = s.schema_id
+                WHERE s.name <> 'sys'
+                ORDER BY s.name, seq.name;");
+        }
+
+        public DataTable GetUsers()
+        {
+            return _conn.ExecuteSelect(@"
+                SELECT 
+                    name AS UserName,
+                    type_desc AS UserType,
+                    create_date AS CreateDate
+                FROM sys.database_principals
+                WHERE type IN ('S', 'U', 'G')
+                  AND name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
+                  AND name NOT LIKE 'db_%'
+                  AND name NOT LIKE '##%'
+                ORDER BY name;");
         }
 
         public DataTable GetColumns(string schema, string objectName)

@@ -39,6 +39,11 @@ namespace DatabaseManager.Forms
             LoadConnectionsList();
         }
 
+        public ConnectionService GetConnectionService()
+        {
+            return _conn;
+        }
+
         private void BuildUI()
         {
             Text = "Database Manager - Conexión";
@@ -623,10 +628,8 @@ namespace DatabaseManager.Forms
                     ConnectionManager.UpdateLastUsed(_selectedConnection.Id);
                 }
 
-                var main = new MainForm(_conn);
-                main.FormClosed += (s, args) => Application.Exit();
-                main.Show();
-                this.Hide();
+                DialogResult = DialogResult.OK;
+                this.Close();
             }
             catch (Exception ex)
             {
